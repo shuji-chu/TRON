@@ -1,0 +1,28 @@
+name: TRX Bot
+on:
+  push:
+    branches: [ main ]
+  schedule:
+    - cron: '0 */5 * * *'
+  workflow_dispatch:
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      - name: Install dependencies
+        run: npm install
+      - name: Run bot
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          TRX_PRIVATE_KEY: ${{ secrets.TRX_PRIVATE_KEY }}
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          SPREAD: ${{ secrets.SPREAD }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          ADMIN_ID: ${{ secrets.ADMIN_ID }}
+        run: npm start
