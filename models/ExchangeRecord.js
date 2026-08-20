@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+
 const exchangeRecordSchema = new mongoose.Schema({
     txId: { type: String, unique: true },
     fromAddress: String,
@@ -12,4 +13,5 @@ const exchangeRecordSchema = new mongoose.Schema({
     userId: String,
     createdAt: { type: Date, default: Date.now }
 });
+
 module.exports = mongoose.model('ExchangeRecord', exchangeRecordSchema);
