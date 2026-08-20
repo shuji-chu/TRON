@@ -4,6 +4,7 @@ const AdButton = require('../models/AdButton');
 async function buildMainKeyboard() {
     const buttons = await AdButton.find().sort('order').limit(config.MAX_BUTTONS);
     let keyboard = [];
+
     if (buttons.length) {
         for (let i = 0; i < buttons.length; i += 2) {
             const row = [];
@@ -15,6 +16,7 @@ async function buildMainKeyboard() {
     } else {
         keyboard.push([{ text: '📢 广告投放', url: config.ADMIN_LINK }]);
     }
+
     return { inline_keyboard: keyboard };
 }
 
