@@ -77,6 +77,34 @@ async function handleCommand(msg) {
         return;
     }
 
+    if (text.startsWith('/addbutton')) {
+        if (userId !== config.ADMIN_ID) return;
+        const parts = text.replace('/addbutton ', '').split('|');
+        if (parts.length === 2) {
+            const count = await AdButton.countDocuments();
+            if (count >= config.MAX_BUTTONS) {
+                await safew.sendMessage(chatId, `最多 ${config.MAX_BUTTONS} 个按钮`);
+                return;
+            }
+            await new AdButton({ text: parts[0].trim(), url: parts[1].trim(), order: count }).save();
+            await safew.sendMessage(chatId, '✅ 广告按钮已添加');
+        }
+        return;
+    }
+
+    if (text.startsWith('/deletebutton')) {
+        if (userId !== config.ADMIN_ID) return;
+        const idx = parseInt(text.replace('/deletebutton ', ''));
+        if (!isNaN(idx)) {
+            const buttons = await AdButton.find().sort('order');
+            if (buttons[idx - 1]) {
+                await AdButton.deleteOne({ _id: buttons[idx - 1]._id });
+                await safew.sendMessage(chatId, '✅ 广告按钮已删除');
+            }
+        }
+        return;
+    }
+
     if (/^T[A-Za-z0-9]{33,34}$/.test(text)) {
         await handleAddressQuery(chatId, text);
         return;
@@ -103,6 +131,7 @@ async function handleAddressQuery(chatId, address) {
 
 async function handleStateInput(chatId, userId, text, session, msg) {
     const state = session.state;
+
     if (state === 'awaiting_admin_password') {
         try { await safew.deleteMessage(chatId, msg.message_id); } catch (e) {}
         if (text === config.ADMIN_PASSWORD) {
@@ -123,6 +152,13 @@ async function handleStateInput(chatId, userId, text, session, msg) {
         const setting = await Setting.findOne({});
         const address = setting.usdtReceiveAddress || config.DEFAULT_WALLET;
         await safew.sendMessage(chatId, `返还地址：\`${text}\`\n请仔细核对返还地址，如地址错误，责任自行承担，概不负责。\n\n请将 USDT 转入以下自动兑换地址：\n\`${address}\`\n\n到账后将按实时汇率自动返还 TRX 到上述地址。`, keyboardUtils.buildConfirmKeyboard());
+    } else if (state === 'awaiting_qr') {
+        if (msg.photo) {
+            const photo = msg.photo[msg.photo.length - 1];
+            await Setting.updateOne({}, { $set: { qrCodeFileId: photo.file_id } });
+            await UserSession.updateOne({ userId }, { $unset: { state: 1 } });
+            await safew.sendMessage(chatId, '✅ 二维码已更新');
+        }
     } else {
         await UserSession.updateOne({ userId }, { $unset: { state: 1 } });
     }
@@ -135,7 +171,13 @@ async function handleCallback(callbackQuery) {
     const messageId = callbackQuery.message.message_id;
 
     if (data === 'exchange') {
-        await safew.sendMessage(chatId, '请发送 /exchange 查看兑换信息');
+        const setting = await Setting.findOne({});
+        const address = setting.usdtReceiveAddress || config.DEFAULT_WALLET;
+        const displayRate = await price.getDisplayRate();
+        const cnyRate = await price.getCnyRate();
+        const hundredUsdt = (100 * displayRate + config.BONUS_AMOUNT).toFixed(4);
+        const text = `📈 转账成功后自动秒回 TRX\n24 小时自动闪兑换\n➖➖➖➖➖➖➖➖➖➖\n💹 实时汇率\n1 USDT = ${displayRate.toFixed(4)} TRX\n100 USDT = ${hundredUsdt} TRX\n今日 U 价：¥${cnyRate} CNY\n🎉 自动兑换地址：\n\`${address}\`\n（点击地址自动复制）\n⚠️ 请仔细核对钱包地址，转错无法找回\n➖➖➖➖➖➖➖➖➖➖\n🔸 进 U 即兑，全自动返 TRX\n🆘 1U 起兑换\n⚡️ 双钱包支付无需担心够不够\n⚠️ 转账成功后请刷新钱包查看\n❗️ 千万请勿使用交易所转账\n🔋 使用能量进行转账节省 80% TRX`;
+        await safew.editMessageText(chatId, messageId, text, { inline_keyboard: [[{ text: '🎁 兑换给他人', callback_data: 'exchange_for_other' }]] });
         await safew.answerCallbackQuery(callbackQuery.id);
     } else if (data === 'exchange_for_other') {
         await UserSession.updateOne({ userId }, { $set: { state: 'awaiting_return_address' } });
